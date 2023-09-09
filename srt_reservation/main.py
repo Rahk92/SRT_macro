@@ -21,7 +21,7 @@ chromedriver_path = r'F:\Code\Python\srt_reservation-main/chromedriver.exe'
 
 
 class SRT:
-    def __init__(self, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check=2, want_reserve=False, want_special=False, want_pay=False):
+    def __init__(self, bot, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check=2, want_reserve=False, want_special=False, quantity=1):
     # def __init__(self, dpt_stn, arr_stn, dpt_dt, dpt_tm, psg_adult=1, psg_child=0, num_trains_to_check=2, want_reserve=False):
         """
         :param dpt_stn: SRT 출발역
@@ -38,7 +38,9 @@ class SRT:
         self.dpt_stn = dpt_stn
         self.arr_stn = arr_stn
         self.dpt_dt = dpt_dt
-        self.dpt_tm = dpt_tm
+        self.dpt_tm = str(int(dpt_tm) // 2 * 2)
+        self.dpt_tm_offset = int(dpt_tm) % 2
+        self.real_dpt_tm = dpt_tm
         
         # self.psg_adult = psg_adult
         # self.psg_child = psg_child
@@ -46,13 +48,16 @@ class SRT:
         self.num_trains_to_check = num_trains_to_check
         self.want_reserve = want_reserve
         self.want_special = want_special
-        self.want_pay = want_pay
         self.driver = None
 
         self.is_booked = False  # 예약 완료 되었는지 확인용
         self.cnt_refresh = 0  # 새로고침 회수 기록
 
         self.check_input()
+        self.bot = bot
+        self.chat_id = chat_id
+        self.quantity = quantity
+        self.cnt_quantity = 0
 
     def check_input(self):
         if self.dpt_stn not in station_list:
@@ -137,7 +142,7 @@ class SRT:
         # Select(self.driver.find_element_by_name("psgInfoPerPrnb5")).select_by_value(self.psg_child)
 
         print("기차를 조회합니다")
-        print(f"출발역:{self.dpt_stn} , 도착역:{self.arr_stn}\n날짜:{self.dpt_dt}, 시간: {self.dpt_tm}시 이후\n{self.num_trains_to_check}개의 기차 중 예약")
+        print(f"출발역:{self.dpt_stn} , 도착역:{self.arr_stn}\n날짜:{self.dpt_dt}, 시간: {self.real_dpt_tm}시 이후\n{self.num_trains_to_check}개의 기차 중 예약")
         # print(f"출발역:{self.dpt_stn} , 도착역:{self.arr_stn}\n날짜:{self.dpt_dt}, 시간: {self.dpt_tm}시 이후\n성인: {self.psg_adult}매, 아동: {self.psg_child}매\n{self.num_trains_to_check}개의 기차 중 예약")
         print(f"예약 대기 사용: {self.want_reserve}")
         print(f"특실 여부: {self.want_special}")
@@ -151,9 +156,9 @@ class SRT:
         while True:
             for i in range(1, self.num_trains_to_check+1):
                 try:
-                    special_seat = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i}) > td:nth-child(6)").text
-                    standard_seat = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i}) > td:nth-child(7)").text
-                    reservation = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i}) > td:nth-child(8)").text
+                    special_seat = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(6)").text
+                    standard_seat = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(7)").text
+                    reservation = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(8)").text
                 except StaleElementReferenceException:
                     special_seat = "매진"
                     standard_seat = "매진"
@@ -165,10 +170,10 @@ class SRT:
 
                         # Error handling in case that click does not work
                         try:
-                            self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i}) > td:nth-child(6) > a").click()
+                            self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(6) > a").click()
                         except ElementClickInterceptedException as err:
                             print(err)
-                            self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i}) > td:nth-child(6) > a").send_keys(Keys.ENTER)
+                            self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(6) > a").send_keys(Keys.ENTER)
                         finally:
                             self.driver.implicitly_wait(3)
 
@@ -176,20 +181,7 @@ class SRT:
                         if self.driver.find_elements(By.ID, 'isFalseGotoMain'):
                             is_booked = True
                             print("특실 예약 성공")
-                            bot = telegram.Bot(token='5145659919:AAE1g-VNdAFcDYrHS1gBz8xcNZaYKH8nE2k')
-                            chat_id = 5251774509
-                            bot.sendMessage(chat_id=chat_id, text="특실 예약 성공!")
-                            if self.want_pay:
-                                # try:
-                                    # self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tal_c > a").click()
-                                # except ElementClickInterceptedException as err:
-                                    # print(err)
-                                    # self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tal_c > a").send_keys(Keys.ENTER)
-                                # finally:
-                                    # self.driver.implicitly_wait(3)
-                                return self.driver
-                            else:
-                                return self.driver
+                            self.bot.sendMessage(chat_id=self.chat_id, text="특실 예약 성공!")
                         else:
                             print("특실 잔여석 없음. 다시 검색")
                             self.driver.back()  # 뒤로가기
@@ -200,32 +192,31 @@ class SRT:
 
                         # Error handling in case that click does not work
                         try:
-                            self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i}) > td:nth-child(7) > a").click()
+                            self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(7) > a").click()
                         except ElementClickInterceptedException as err:
                             print(err)
-                            self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i}) > td:nth-child(7) > a").send_keys(Keys.ENTER)
+                            self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(7) > a").send_keys(Keys.ENTER)
                         finally:
                             self.driver.implicitly_wait(3)
 
                         # 예약이 성공하면
                         if self.driver.find_elements(By.ID, 'isFalseGotoMain'):
-                            is_booked = True
+                            self.cnt_quantity += 1
+                            result_msg = str(self.cnt_quantity) + "/" + str(self.quantity) + " 번째 티켓"
+                            print(result_msg)
                             print("일반실 예약 성공")
-                            bot = telegram.Bot(token='5145659919:AAE1g-VNdAFcDYrHS1gBz8xcNZaYKH8nE2k')
-                            chat_id = 5251774509
-                            bot.sendMessage(chat_id=chat_id, text="일반실 예약 성공!")
-                            if self.want_pay:
-                                # print("결제하기 클릭")
-                                # try:
-                                    # self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tal_c > a").click()
-                                # except ElementClickInterceptedException as err:
-                                    # print(err)
-                                    # self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tal_c > a").send_keys(Keys.ENTER)
-                                # finally:
-                                    # self.driver.implicitly_wait(3)
-                                return self.driver
+                            booked_tm_dpt = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr > td:nth-child(6)")
+                            booked_tm_arr = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr > td:nth-child(7)")
+                            result_str ="출발시간 : " + booked_tm_dpt.text + " / 도착시간 : " + booked_tm_arr.text 
+                            print(result_str)
+                            self.bot.sendMessage(chat_id=self.chat_id, text=result_msg)
+                            self.bot.sendMessage(chat_id=self.chat_id, text="일반실 예약 성공!")
+                            self.bot.sendMessage(chat_id=self.chat_id, text=result_str)
+                            if(self.cnt_quantity == self.quantity):
+                                is_booked = True
                             else:
-                                return self.driver
+                                self.driver.back()  # 뒤로가기
+                                self.driver.implicitly_wait(5)
                         else:
                             print("일반실 잔여석 없음. 다시 검색")
                             self.driver.back()  # 뒤로가기
@@ -234,7 +225,7 @@ class SRT:
                 if self.want_reserve:
                     if "신청하기" in reservation:
                         print("예약 대기 완료")
-                        self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i}) > td:nth-child(8) > a").click()
+                        self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(8) > a").click()
                         is_booked = True
                         return self.driver
 
@@ -249,6 +240,7 @@ class SRT:
                 self.driver.implicitly_wait(10)
                 time.sleep(0.5)
             else:
+                print("예약 완료")
                 return self.driver
 
     def run(self, login_id, login_psw):

@@ -21,13 +21,13 @@ if __name__ == "__main__":
     num_trains_to_check = cli_args.num
     want_reserve = cli_args.reserve
     want_special = cli_args.special
-    want_pay = cli_args.pay
-
-    # srt = SRT(dpt_stn, arr_stn, dpt_dt, dpt_tm, psg_adult, psg_child, num_trains_to_check, want_reserve)
-    srt = SRT(dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check, want_reserve, want_special, want_pay)
-    srt.run(login_id, login_psw)
-    
+    quantity = cli_args.quantity
     bot = telegram.Bot(token='5145659919:AAE1g-VNdAFcDYrHS1gBz8xcNZaYKH8nE2k')
     chat_id = 5251774509
+
+    # srt = SRT(dpt_stn, arr_stn, dpt_dt, dpt_tm, psg_adult, psg_child, num_trains_to_check, want_reserve)
+    
+    srt = SRT(bot, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check, want_reserve, want_special, quantity)
+    srt.run(login_id, login_psw)
     
     bot.sendMessage(chat_id=chat_id, text="프로그램 종료!")

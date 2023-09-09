@@ -14,9 +14,9 @@ def parse_cli_args():
     # parser.add_argument("--ch", help="Number of Child", type=str, metavar="1", default=0)
 
     parser.add_argument("--num", help="no of trains to check", type=int, metavar="2", default=2)
-    parser.add_argument("--reserve", help="Reserve or not", type=bool, metavar="2", default=False)
-    parser.add_argument("--special", help="Special seat or not", type=bool, metavar="2", default=False)
-    parser.add_argument("--pay", help="Pay for reserved tickets", type=bool, metavar="2", default=False)
+    parser.add_argument("--reserve", help="Reserve or not", type=bool, metavar="False", default=False)
+    parser.add_argument("--special", help="Special seat or not", type=bool, metavar="False", default=False)
+    parser.add_argument("--quantity", help="Quantity of tickets", type=int, metavar="1", default=1)
 
     args = parser.parse_args()
 
