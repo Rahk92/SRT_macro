@@ -19,15 +19,20 @@ if __name__ == "__main__":
     # psg_child = cli_args.ch
 
     num_trains_to_check = cli_args.num
+
     want_reserve = cli_args.reserve
     want_special = cli_args.special
+    want_any = cli_args.any
+
     quantity = cli_args.quantity
+
     bot = telegram.Bot(token='5145659919:AAE1g-VNdAFcDYrHS1gBz8xcNZaYKH8nE2k')
     chat_id = 5251774509
 
     # srt = SRT(dpt_stn, arr_stn, dpt_dt, dpt_tm, psg_adult, psg_child, num_trains_to_check, want_reserve)
     
-    srt = SRT(bot, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check, want_reserve, want_special, quantity)
+    srt = SRT(bot, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check, want_reserve, want_special, want_any, quantity)
     srt.run(login_id, login_psw)
-    
+
+    print("프로그램 종료!")
     bot.sendMessage(chat_id=chat_id, text="프로그램 종료!")

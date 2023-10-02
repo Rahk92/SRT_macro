@@ -12,7 +12,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
-from selenium.common.exceptions import ElementClickInterceptedException, StaleElementReferenceException, WebDriverException
+from selenium.common.exceptions import ElementClickInterceptedException, StaleElementReferenceException, WebDriverException, TimeoutException, NoSuchElementException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
@@ -24,7 +24,7 @@ chromedriver_path = r'F:\Code\Python\srt_reservation-main/chromedriver.exe'
 
 
 class SRT:
-    def __init__(self, bot, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check=2, want_reserve=False, want_special=False, quantity=1):
+    def __init__(self, bot, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check=2, want_reserve=False, want_special=False, want_any=False, quantity=1):
     # def __init__(self, dpt_stn, arr_stn, dpt_dt, dpt_tm, psg_adult=1, psg_child=0, num_trains_to_check=2, want_reserve=False):
         """
         :param dpt_stn: SRT 출발역
@@ -51,6 +51,7 @@ class SRT:
         self.num_trains_to_check = num_trains_to_check
         self.want_reserve = want_reserve
         self.want_special = want_special
+        self.want_any = want_any
         self.driver = None
 
         self.is_booked = False  # 예약 완료 되었는지 확인용
@@ -159,11 +160,20 @@ class SRT:
         # print(f"출발역:{self.dpt_stn} , 도착역:{self.arr_stn}\n날짜:{self.dpt_dt}, 시간: {self.dpt_tm}시 이후\n성인: {self.psg_adult}매, 아동: {self.psg_child}매\n{self.num_trains_to_check}개의 기차 중 예약")
         print(f"예약 대기 사용: {self.want_reserve}")
         print(f"특실 여부: {self.want_special}")
+        print(f"무조건 여부: {self.want_any}")
 
         # 조회하기 버튼 클릭
         self.driver.find_element(By.XPATH, "//input[@value='조회하기']").click()
-        self.driver.implicitly_wait(30)
-        time.sleep(1)
+        try:
+            # Wait until Netfunnel is not present
+            netfunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
+            wait = WebDriverWait(self.driver, 300)
+            element = wait.until(EC.staleness_of(netfunnel))
+            time.sleep(1)
+        except StaleElementReferenceException:
+            self.driver.implicitly_wait(30)
+        except NoSuchElementException:
+            self.driver.implicitly_wait(3)
 
     def refresh_search_result(self):
         while True:
@@ -177,7 +187,7 @@ class SRT:
                     standard_seat = "매진"
                     reservation = "매진"
                 
-                if self.want_special:
+                if self.want_special or self.want_any:
                     if "예약하기" in special_seat:
                         print("예약 가능 클릭")
 
@@ -192,19 +202,46 @@ class SRT:
 
                         # 예약이 성공하면
                         if self.driver.find_elements(By.ID, 'isFalseGotoMain'):
-                            is_booked = True
-                            print("특실 예약 성공")
+                            self.cnt_quantity += 1
+                            result_msg = str(self.cnt_quantity) + "/" + str(self.quantity) + " 번째 티켓"
+                            print(result_msg)
+                            print("일반실 예약 성공")
+                            booked_tm_dpt = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr > td:nth-child(6)")
+                            booked_tm_arr = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr > td:nth-child(7)")
+                            result_str = "출발시간 : " + booked_tm_dpt.text + " / 도착시간 : " + booked_tm_arr.text
+                            print(result_str)
+                            self.bot.sendMessage(chat_id=self.chat_id, text=result_msg)
                             self.bot.sendMessage(chat_id=self.chat_id, text="특실 예약 성공!")
-                        # else:
-                            # print("특실 잔여석 없음. 다시 검색")
-                            # self.driver.back()  # 뒤로가기
-                            # self.driver.implicitly_wait(5)
+                            self.bot.sendMessage(chat_id=self.chat_id, text=result_str)
+                            if (self.cnt_quantity == self.quantity):
+                                self.is_booked = True
+                                break
+                            else:
+                                self.driver.back()  # 뒤로가기
+                                self.driver.implicitly_wait(5)
+                        else:
+                            print("특실 잔여석 없음. 다시 검색")
+                            self.driver.back()  # 뒤로가기
+                            try:
+                                # Wait until Netfunnel is not present
+                                NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
+                                wait = WebDriverWait(self.driver, 300)
+                                element = wait.until(EC.staleness_of(NetFunnel))
+                                time.sleep(1)
+                            except TimeoutException:
+                                self.driver.implicitly_wait(3)
+                            except StaleElementReferenceException:
+                                self.driver.implicitly_wait(3)
+                            except NoSuchElementException:
+                                self.driver.implicitly_wait(3)
                 
-                if "예약하기" in standard_seat:
+                if not self.want_special or self.want_any and "예약하기" in standard_seat:
                    print("예약 가능 클릭")
 
                    # Error handling in case that click does not work
                    try:
+                       wait = WebDriverWait(self.driver, 5)
+                       element = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(7) > a")))
                        self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(7) > a").click()
                    except ElementClickInterceptedException as err:
                        print(err)
@@ -222,25 +259,55 @@ class SRT:
                        booked_tm_arr = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr > td:nth-child(7)")
                        result_str ="출발시간 : " + booked_tm_dpt.text + " / 도착시간 : " + booked_tm_arr.text 
                        print(result_str)
+                       train_info = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div:nth-child(6) > table > tbody > tr > td:nth-child(3)")
+                       print(train_info.text)
                        self.bot.sendMessage(chat_id=self.chat_id, text=result_msg)
                        self.bot.sendMessage(chat_id=self.chat_id, text="일반실 예약 성공!")
                        self.bot.sendMessage(chat_id=self.chat_id, text=result_str)
+                       self.bot.sendMessage(chat_id=self.chat_id, text=train_info.text)
                        if(self.cnt_quantity == self.quantity):
-                           is_booked = True
+                           self.is_booked = True
+                           break
                        else:
                            self.driver.back()  # 뒤로가기
                            self.driver.implicitly_wait(5)
                    else:
                        print("일반실 잔여석 없음. 다시 검색")
                        self.driver.back()  # 뒤로가기
-                       self.driver.implicitly_wait(30)
+                       try:
+                           # Wait until Netfunnel is not present
+                           NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
+                           wait = WebDriverWait(self.driver, 300)
+                           element = wait.until(EC.staleness_of(NetFunnel))
+                           time.sleep(1)
+                       except TimeoutException:
+                           self.driver.implicitly_wait(3)
+                       except StaleElementReferenceException:
+                           self.driver.implicitly_wait(3)
+                       except NoSuchElementException:
+                           self.driver.implicitly_wait(3)
 
                 if self.want_reserve:
                     if "신청하기" in reservation:
                         print("예약 대기 완료")
                         self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(8) > a").click()
-                        is_booked = True
-                        return self.driver
+                        self.is_booked = True
+                        self.cnt_quantity += 1
+                        result_msg = str(self.cnt_quantity) + "/" + str(self.quantity) + " 번째 티켓"
+                        print(result_msg)
+                        booked_tm_dpt = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr > td:nth-child(6)")
+                        booked_tm_arr = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr > td:nth-child(7)")
+                        result_str = "출발시간 : " + booked_tm_dpt.text + " / 도착시간 : " + booked_tm_arr.text
+                        print(result_str)
+                        self.bot.sendMessage(chat_id=self.chat_id, text=result_msg)
+                        self.bot.sendMessage(chat_id=self.chat_id, text="일반실 예약 대기 예약 성공!")
+                        self.bot.sendMessage(chat_id=self.chat_id, text=result_str)
+                        if (self.cnt_quantity == self.quantity):
+                            self.is_booked = True
+                            break
+                        else:
+                            self.driver.back()  # 뒤로가기
+                            self.driver.implicitly_wait(5)
 
             if not self.is_booked:
                 time.sleep(randint(2, 4))  # 2~4초 랜덤으로 기다리기
@@ -250,15 +317,26 @@ class SRT:
                 self.driver.execute_script("arguments[0].click();", submit)
                 self.cnt_refresh += 1
                 print(f"새로고침 {self.cnt_refresh}회")
-                # # wait until Netfunnel is not present
-                NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
-                wait = WebDriverWait(self.driver, 60)
-                element = wait.until(EC.staleness_of(NetFunnel))
-                #self.driver.implicitly_wait(30)
-                time.sleep(1)
+                # Wait until Netfunnel is not present
+                try:
+                    # Wait until Netfunnel is not present
+                    NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
+                    wait = WebDriverWait(self.driver, 300)
+                    element = wait.until(EC.staleness_of(NetFunnel))
+                    time.sleep(1)
+                except TimeoutException:
+                    self.driver.implicitly_wait(30)
+                except StaleElementReferenceException:
+                    self.driver.implicitly_wait(3)
+                except NoSuchElementException:
+                    self.driver.implicitly_wait(3)
             else:
                 print("예약 완료")
+                self.bot.sendMessage(chat_id=self.chat_id, text="예약 완료")
                 return self.driver
+
+    #def pay(self):
+        #TBD
 
     def run(self, login_id, login_psw):
         self.run_driver()
@@ -266,11 +344,3 @@ class SRT:
         self.login()
         self.go_search()
         self.refresh_search_result()
-
-
-# if __name__ == "__main__":
-#     srt_id = os.environ.get('srt_id')
-#     srt_psw = os.environ.get('srt_psw')
-#
-#     srt = SRT("동탄", "동대구", "20220119", "08")
-#     srt.run(srt_id, srt_psw)
