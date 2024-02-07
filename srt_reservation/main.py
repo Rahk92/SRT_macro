@@ -174,11 +174,12 @@ class SRT:
         try:
             # Wait until Netfunnel is not present
             netfunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
-            # wait = WebDriverWait(self.driver, 300)
-            # element = wait.until(EC.staleness_of(netfunnel))
-            # time.sleep(1)
             print("NetFunnel 감지, 우회 시도")
-            self.driver.execute_script("javascript:NetFunnel.gControl.next.success({},{data:{}})")
+            wait = WebDriverWait(self.driver, 300)
+            element = wait.until(EC.staleness_of(netfunnel))
+
+            # self.driver.execute_script("javascript:NetFunnel.gControl.next.success({},{data:{}})")
+            time.sleep(1)
 
         except StaleElementReferenceException:
             self.driver.implicitly_wait(30)
@@ -237,11 +238,12 @@ class SRT:
                             try:
                                 # Wait until Netfunnel is not present
                                 NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
-                                # wait = WebDriverWait(self.driver, 300)
-                                # element = wait.until(EC.staleness_of(NetFunnel))
-                                # time.sleep(1)
                                 print("NetFunnel 감지, 우회 시도")
-                                self.driver.execute_script("javascript:NetFunnel.gControl.next.success({},{data:{}})")
+                                wait = WebDriverWait(self.driver, 300)
+                                element = wait.until(EC.staleness_of(NetFunnel))
+                                time.sleep(1)
+
+                                # self.driver.execute_script("javascript:NetFunnel.gControl.next.success({},{data:{}})")
                             except TimeoutException:
                                 self.driver.implicitly_wait(3)
                             except StaleElementReferenceException:
@@ -295,11 +297,12 @@ class SRT:
                        try:
                            # Wait until Netfunnel is not present
                            NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
-                           # wait = WebDriverWait(self.driver, 300)
-                           # element = wait.until(EC.staleness_of(NetFunnel))
-                           # time.sleep(1)
                            print("NetFunnel 감지, 우회 시도")
-                           self.driver.execute_script("javascript:NetFunnel.gControl.next.success({},{data:{}})")
+                           wait = WebDriverWait(self.driver, 300)
+                           element = wait.until(EC.staleness_of(NetFunnel))
+                           time.sleep(1)
+
+                           # self.driver.execute_script("javascript:NetFunnel.gControl.next.success({},{data:{}})")
                        except TimeoutException:
                            self.driver.implicitly_wait(3)
                        except StaleElementReferenceException:
@@ -341,11 +344,11 @@ class SRT:
                 try:
                     # Wait until Netfunnel is not present
                     NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
-                    # wait = WebDriverWait(self.driver, 300)
-                    # element = wait.until(EC.staleness_of(NetFunnel))
-                    # time.sleep(1)
                     print("NetFunnel 감지, 우회 시도")
-                    self.driver.execute_script("javascript:NetFunnel.gControl.next.success({},{data:{}})")
+                    wait = WebDriverWait(self.driver, 300)
+                    element = wait.until(EC.staleness_of(NetFunnel))
+                    time.sleep(1)
+                    # self.driver.execute_script("javascript:NetFunnel.gControl.next.success({},{data:{}})")
                 except TimeoutException:
                     self.driver.implicitly_wait(30)
                 except StaleElementReferenceException:
