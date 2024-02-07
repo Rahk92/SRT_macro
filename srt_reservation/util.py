@@ -10,8 +10,9 @@ def parse_cli_args():
     parser.add_argument("--arr", help="Arrival Station", type=str, metavar="동대구")
     parser.add_argument("--dt", help="Departure Date", type=str, metavar="20220118")
     parser.add_argument("--tm", help="Departure Time", type=str, metavar="08, 10, 12, ...")
-    # parser.add_argument("--ad", help="Number of Adult", type=str, metavar="2", default=1)
-    # parser.add_argument("--ch", help="Number of Child", type=str, metavar="1", default=0)
+
+    parser.add_argument("--token", help="Telegram Token", type=str)
+    parser.add_argument("--chat_id", help="Telegram Chat ID", type=int)
 
     parser.add_argument("--num", help="no of trains to check", type=int, metavar="2", default=2)
     parser.add_argument("--reserve", help="Reserve or not", type=bool, metavar="False", default=False)
