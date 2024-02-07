@@ -7,7 +7,7 @@
 
 ## 다운
 ```cmd
-git clone https://github.com/Rahk92/SRT_reservation.git
+git clone https://github.com/Rahk92/SRT_macro.git
 ```
   
 ## 필요
