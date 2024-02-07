@@ -64,7 +64,7 @@ python quickstart.py --user 1234567890 --psw 000000 --dpt 동탄 --arr 동대구
 **텔레그램 알림**  
 무조건 예약 사용 및 검색 결과 상위 3개의 예약 가능 여부 확인 그리고 텔레그램 알림 설정
 ```cmd
-python quickstart.py --user 1234567890 --psw 000000 --dpt 동탄 --arr 동대구 --dt 20220117 --tm 08 --num 3 --quantity 2 --special True --token qwerasdf::15883300 --chat_id 987654321
+python quickstart_telegram.py --user 1234567890 --psw 000000 --dpt 동탄 --arr 동대구 --dt 20220117 --tm 08 --num 3 --quantity 2 --special True --token qwerasdf::15883300 --chat_id 987654321
 ```
 
 **실행 결과**
