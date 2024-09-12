@@ -21,6 +21,7 @@ if __name__ == "__main__":
     dpt_dt = cli_args.dt
     dpt_tm = cli_args.tm
 
+    notify = cli_args.notify
     token = cli_args.token
     chat_id = cli_args.chat_id
 
@@ -34,8 +35,9 @@ if __name__ == "__main__":
 
     # srt = SRT(dpt_stn, arr_stn, dpt_dt, dpt_tm, psg_adult, psg_child, num_trains_to_check, want_reserve)
     
-    srt = SRT(token, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check, want_reserve, want_special, want_any, quantity)
+    srt = SRT(notify, token, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check, want_reserve, want_special, want_any, quantity)
     srt.run(login_id, login_psw)
 
     print("프로그램 종료!")
-    asyncio.run(token, chat_id, main("프로그램 종료!")) #봇 실행하는 코드
+    if notify:
+        asyncio.run(token, chat_id, main("프로그램 종료!")) #봇 실행하는 코드

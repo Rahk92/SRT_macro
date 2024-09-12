@@ -11,6 +11,7 @@ def parse_cli_args():
     parser.add_argument("--dt", help="Departure Date", type=str, metavar="20220118")
     parser.add_argument("--tm", help="Departure Time", type=str, metavar="08, 10, 12, ...")
 
+    parser.add_argument("--notify", help="Telegram Notification", action=argparse.BooleanOptionalAction)
     parser.add_argument("--token", help="Telegram Token", type=str)
     parser.add_argument("--chat_id", help="Telegram Chat ID", type=int)
 

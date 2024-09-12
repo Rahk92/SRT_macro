@@ -4,9 +4,10 @@ import time
 import telegram
 import requests
 import asyncio
+import json
 from random import randint
 from datetime import datetime
-from selenium import webdriver
+from seleniumwire import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -21,7 +22,7 @@ from srt_reservation.exceptions import InvalidStationNameError, InvalidDateError
 from srt_reservation.validation import station_list
 
 class SRT:
-    def __init__(self, token, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check=2, want_reserve=False, want_special=False, want_any=False, quantity=1):
+    def __init__(self, notify, token, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check=2, want_reserve=False, want_special=False, want_any=False, quantity=1):
     # def __init__(self, dpt_stn, arr_stn, dpt_dt, dpt_tm, psg_adult=1, psg_child=0, num_trains_to_check=2, want_reserve=False):
         """
         :param dpt_stn: SRT 출발역
@@ -39,7 +40,7 @@ class SRT:
         self.arr_stn = arr_stn
         self.dpt_dt = dpt_dt
         self.dpt_tm = str(int(dpt_tm) // 2 * 2).zfill(2)
-        self.dpt_tm_offset = int(dpt_tm) % 2
+        self.dpt_tm_offset = 0
         self.real_dpt_tm = dpt_tm
         
         # self.psg_adult = psg_adult
@@ -55,10 +56,14 @@ class SRT:
         self.cnt_refresh = 0  # 새로고침 회수 기록
 
         self.check_input()
+        self.notify = notify
         self.token = token
         self.chat_id = chat_id
         self.quantity = quantity
         self.cnt_quantity = 0
+
+        self.NF_pass_flag = False
+        self.key = ""
 
     async def telegram_send(self, txt):
         bot = telegram.Bot(token=self.token)
@@ -82,8 +87,18 @@ class SRT:
 
     def run_driver(self):
         try:
-            self.driver = webdriver.Chrome()
-            # self.driver = webdriver.Chrome(executable_path=chromedriver_path)
+            options = Options()
+            # options.add_argument('headless')
+            options.add_argument("disable-gpu")
+            options.add_argument("--no-sandbox")
+            options.set_capability(
+                "goog:loggingPrefs", {"performance": "ALL", "browser": "ALL"}
+            )
+            self.driver = webdriver.Chrome(options=options)
+            if self.NF_pass_flag:
+                self.NF_pass_flag = False
+            # self.driver.minimize_window()
+            # self.driver = webdriver.Chrome(executable_path=chromed river_path)
             # self.driver = webdriver.Chrome(r"F:\Code\Python\srt_reservation-main\chromedriver.exe")
         except WebDriverException:
            # release = "http://chromedriver.storage.googleapis.com/LATEST_RELEASE"
@@ -103,7 +118,7 @@ class SRT:
 
 
     def login(self):
-        self.driver.get('https://etk.srail.co.kr/cmc/01/selectLoginForm.do')
+        self.driver.get('https://etk.srail.kr/cmc/01/selectLoginForm.do')
 
         self.driver.implicitly_wait(15)
         self.driver.find_element(By.ID, 'srchDvNm01').send_keys(str(self.login_id))
@@ -155,19 +170,28 @@ class SRT:
         # elm_psg_child = self.driver.find_element_by_name("psgInfoPerPrnb5")
         # self.driver.execute_script("arguments[0].setAttribute('style','display: True;')", elm_psg_child)
         # Select(self.driver.find_element_by_name("psgInfoPerPrnb5")).select_by_value(self.psg_child)
-
-        print("============================")
-        print("기차를 조회합니다")
-        print(f"출발역:{self.dpt_stn} , 도착역:{self.arr_stn}\n날짜:{self.dpt_dt}, 시간: {self.real_dpt_tm}시 이후\n{self.num_trains_to_check}개의 기차 중 예약")
-        # print(f"출발역:{self.dpt_stn} , 도착역:{self.arr_stn}\n날짜:{self.dpt_dt}, 시간: {self.dpt_tm}시 이후\n성인: {self.psg_adult}매, 아동: {self.psg_child}매\n{self.num_trains_to_check}개의 기차 중 예약")
-        print(f"예약 대기 사용: {self.want_reserve}")
-        print(f"특실 여부: {self.want_special}")
-        print(f"무조건 여부: {self.want_any}")
-        print("----------------------------")
-        print("텔레그램 test 메시지 전송")
-        print("메시지 안오면 확인 후 재실행")
-        asyncio.run(self.telegram_send(txt="Test"))
-        print("============================")
+        if self.cnt_refresh == 0:
+            print("============================")
+            config_txt = (f'기차를 조회합니다\n'
+                          f'출발역:{self.dpt_stn} , 도착역:{self.arr_stn}\n'
+                          f'날짜:{self.dpt_dt}, 시간: {self.real_dpt_tm}시 이후\n'
+                          f'{self.num_trains_to_check}개의 기차 중 예약\n'
+                          f'예약 대기 사용: {self.want_reserve}\n'
+                          f'특실 여부: {self.want_special}\n'
+                          f'무조건 여부: {self.want_any}')
+            print(config_txt)
+            # print("기차를 조회합니다")
+            # print(f"출발역:{self.dpt_stn} , 도착역:{self.arr_stn}\n날짜:{self.dpt_dt}, 시간: {self.real_dpt_tm}시 이후\n{self.num_trains_to_check}개의 기차 중 예약")
+            # # print(f"출발역:{self.dpt_stn} , 도착역:{self.arr_stn}\n날짜:{self.dpt_dt}, 시간: {self.dpt_tm}시 이후\n성인: {self.psg_adult}매, 아동: {self.psg_child}매\n{self.num_trains_to_check}개의 기차 중 예약")
+            # print(f"예약 대기 사용: {self.want_reserve}")
+            # print(f"특실 여부: {self.want_special}")
+            # print(f"무조건 여부: {self.want_any}")
+            if self.notify:
+                print("----------------------------")
+                print("텔레그램 test 메시지 전송")
+                print("메시지 안오면 확인 후 재실행")
+                asyncio.run(self.telegram_send(txt=config_txt))
+            print("============================")
 
         # 조회하기 버튼 클릭
         self.driver.find_element(By.XPATH, "//input[@value='조회하기']").click()
@@ -175,10 +199,18 @@ class SRT:
             # Wait until Netfunnel is not present
             netfunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
             print("NetFunnel 감지, 우회 시도")
-            wait = WebDriverWait(self.driver, 300)
-            element = wait.until(EC.staleness_of(netfunnel))
-
-            # self.driver.execute_script("javascript:NetFunnel.gControl.next.success({},{data:{}})")
+            if not self.NF_pass_flag:
+                wait = WebDriverWait(self.driver, 1800)
+                element = wait.until(EC.staleness_of(netfunnel))
+                for request in self.driver.requests:
+                    if request.response:
+                        if "nf.letskorail" and "opcode=5004" in request.url:
+                                key_idx0 = request.url.index("key=")
+                                key_idx1 = request.url.index("&nfid")
+                                self.key = request.url[key_idx0+4:key_idx1]
+                                self.NF_pass_flag = True
+                                print(f'{request.url}, 응답코드 {request.response.status_code}, 컨텐츠 유형: {request.response.headers["Content-Type"]}')
+                                print("Token : " + self.key)
             time.sleep(1)
 
         except StaleElementReferenceException:
@@ -188,8 +220,26 @@ class SRT:
 
     def refresh_search_result(self):
         while True:
-            # self.driver.find_element(By.CSS_SELECTOR,f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child()")
-            for i in range(1, self.num_trains_to_check+1):
+            try:
+                tbody = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody")
+                tr = tbody.find_elements(By.TAG_NAME, "tr")
+                max_num_train = min(len(tr) + 1, self.num_trains_to_check + 1)
+            except NoSuchElementException:
+                submit = self.driver.find_element(By.XPATH, "//input[@value='조회하기']")
+                self.driver.execute_script("arguments[0].click();", submit)
+
+            if self.dpt_tm != self.real_dpt_tm:
+                for idx in range(0, max_num_train):
+                    dpt = self.driver.find_element(By.CSS_SELECTOR,f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({1 + idx}) > td:nth-child(4)").text
+                    dpt_time = dpt.split('\n')[1]
+                    hour = dpt_time.split(':')[0]
+                    if hour == self.real_dpt_tm:
+                        self.dpt_tm_offset = idx
+                        break
+            else:
+                self.dpt_tm_offset = 0
+
+            for i in range(1, max_num_train):
                 try:
                     # self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child()")
                     special_seat = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(6)").text
@@ -199,6 +249,10 @@ class SRT:
                     special_seat = "매진"
                     standard_seat = "매진"
                     reservation = "매진"
+                except NoSuchElementException:
+                    print("NoSuchElementException. 재실행 필요")
+                    if self.notify:
+                        asyncio.run(self.telegram_send(txt="NoSuchElementException. 재실행 필요"))
                 
                 if self.want_special or self.want_any:
                     if "예약하기" in special_seat:
@@ -223,9 +277,10 @@ class SRT:
                             booked_tm_arr = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr > td:nth-child(7)")
                             result_str = "출발시간 : " + booked_tm_dpt.text + " / 도착시간 : " + booked_tm_arr.text
                             print(result_str)
-                            asyncio.run(self.telegram_send(txt=result_msg))
-                            asyncio.run(self.telegram_send(txt="특실 예약 성공!"))
-                            asyncio.run(self.telegram_send(txt=result_str))
+                            if self.notify:
+                                asyncio.run(self.telegram_send(txt=result_msg))
+                                asyncio.run(self.telegram_send(txt="특실 예약 성공!"))
+                                asyncio.run(self.telegram_send(txt=result_str))
                             if (self.cnt_quantity == self.quantity):
                                 self.is_booked = True
                                 break
@@ -239,11 +294,12 @@ class SRT:
                                 # Wait until Netfunnel is not present
                                 NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
                                 print("NetFunnel 감지, 우회 시도")
-                                wait = WebDriverWait(self.driver, 300)
+                                if self.NF_pass_flag:
+                                    self.driver.execute_script("javascript:NetFunnel.gLastData.key='" + self.key + "'")
+                                wait = WebDriverWait(self.driver, 1800)
                                 element = wait.until(EC.staleness_of(NetFunnel))
                                 time.sleep(1)
 
-                                # self.driver.execute_script("javascript:NetFunnel.gControl.next.success({},{data:{}})")
                             except TimeoutException:
                                 self.driver.implicitly_wait(3)
                             except StaleElementReferenceException:
@@ -273,7 +329,7 @@ class SRT:
                        print("일반실 예약 성공")
                        booked_tm_dpt = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr > td:nth-child(6)")
                        booked_tm_arr = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr > td:nth-child(7)")
-                       result_str ="출발시간 : " + booked_tm_dpt.text + " / 도착시간 : " + booked_tm_arr.text 
+                       result_str ="출발시간 : " + booked_tm_dpt.text + " / 도착시간 : " + booked_tm_arr.text
                        print(result_str)
                        train_info = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div:nth-child(6) > table > tbody > tr > td:nth-child(3)")
                        print(train_info.text)
@@ -284,7 +340,8 @@ class SRT:
                        result_msg_merge = f'{result_msg} \n일반실 예약 성공! \n{result_str} \n{train_info.text}'
                        # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
                        # asyncio.run(self.telegram_send(result_msg_merge))
-                       asyncio.run(self.telegram_send(txt=result_msg_merge))
+                       if self.notify:
+                            asyncio.run(self.telegram_send(txt=result_msg_merge))
                        if(self.cnt_quantity == self.quantity):
                            self.is_booked = True
                            break
@@ -296,13 +353,14 @@ class SRT:
                        self.driver.back()  # 뒤로가기
                        try:
                            # Wait until Netfunnel is not present
-                           NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
+                           # NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
                            print("NetFunnel 감지, 우회 시도")
-                           wait = WebDriverWait(self.driver, 300)
+                           if self.NF_pass_flag:
+                               self.driver.execute_script("javascript:NetFunnel.gLastData.key='" + self.key + "'")
+                           wait = WebDriverWait(self.driver, 1800)
                            element = wait.until(EC.staleness_of(NetFunnel))
                            time.sleep(1)
-
-                           # self.driver.execute_script("javascript:NetFunnel.gControl.next.success({},{data:{}})")
+                           self.driver.implicitly_wait(30)
                        except TimeoutException:
                            self.driver.implicitly_wait(3)
                        except StaleElementReferenceException:
@@ -322,9 +380,10 @@ class SRT:
                         booked_tm_arr = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr > td:nth-child(7)")
                         result_str = "출발시간 : " + booked_tm_dpt.text + " / 도착시간 : " + booked_tm_arr.text
                         print(result_str)
-                        asyncio.run(self.telegram_send(txt=result_msg))
-                        asyncio.run(self.telegram_send(txt="일반실 예약 대기 예약 성공!"))
-                        asyncio.run(self.telegram_send(txt=result_str))
+                        if self.notify:
+                            asyncio.run(self.telegram_send(txt=result_msg))
+                            asyncio.run(self.telegram_send(txt="일반실 예약 대기 예약 성공!"))
+                            asyncio.run(self.telegram_send(txt=result_str))
                         if (self.cnt_quantity == self.quantity):
                             self.is_booked = True
                             break
@@ -333,7 +392,13 @@ class SRT:
                             self.driver.implicitly_wait(5)
 
             if not self.is_booked:
+                print("예약 불가")
                 time.sleep(randint(2, 4))  # 2~4초 랜덤으로 기다리기
+                if self.cnt_refresh % 100 == 0 and self.cnt_refresh != 0:
+                    self.cnt_refresh += 1
+                    print(f"새로고침 {self.cnt_refresh}회")
+                    self.driver.quit()
+                    return False
 
                 # 다시 조회하기
                 submit = self.driver.find_element(By.XPATH, "//input[@value='조회하기']")
@@ -345,10 +410,13 @@ class SRT:
                     # Wait until Netfunnel is not present
                     NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
                     print("NetFunnel 감지, 우회 시도")
-                    wait = WebDriverWait(self.driver, 300)
+                    if self.NF_pass_flag:
+                        self.driver.execute_script("javascript:NetFunnel.gLastData.key='" + self.key + "'")
+                    wait = WebDriverWait(self.driver, 1800)
                     element = wait.until(EC.staleness_of(NetFunnel))
                     time.sleep(1)
-                    # self.driver.execute_script("javascript:NetFunnel.gControl.next.success({},{data:{}})")
+
+                    self.driver.implicitly_wait(30)
                 except TimeoutException:
                     self.driver.implicitly_wait(30)
                 except StaleElementReferenceException:
@@ -357,14 +425,18 @@ class SRT:
                     self.driver.implicitly_wait(3)
             else:
                 print("예약 완료")
-                self.telegram_send(txt="예약 완료")
-                return self.driver
+                if self.notify:
+                    self.telegram_send(txt="예약 완료")
+                return True
     # TODO
     #def pay(self):
 
     def run(self, login_id, login_psw):
-        self.run_driver()
-        self.set_log_info(login_id, login_psw)
-        self.login()
-        self.go_search()
-        self.refresh_search_result()
+        result = False
+        while not result:
+            self.run_driver()
+            self.set_log_info(login_id, login_psw)
+            self.login()
+            self.go_search()
+            result = self.refresh_search_result()
+        self.driver.quit()
