@@ -220,6 +220,7 @@ class SRT:
 
     def refresh_search_result(self):
         while True:
+            max_num_train = 1
             try:
                 tbody = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody")
                 tr = tbody.find_elements(By.TAG_NAME, "tr")
@@ -227,6 +228,23 @@ class SRT:
             except NoSuchElementException:
                 submit = self.driver.find_element(By.XPATH, "//input[@value='조회하기']")
                 self.driver.execute_script("arguments[0].click();", submit)
+                try:
+                    # Wait until Netfunnel is not present
+                    NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
+                    print("NetFunnel 감지, 우회 시도")
+                    if self.NF_pass_flag:
+                        self.driver.execute_script("javascript:NetFunnel.gLastData.key='" + self.key + "'")
+                    wait = WebDriverWait(self.driver, 1800)
+                    element = wait.until(EC.staleness_of(NetFunnel))
+                    time.sleep(1)
+
+                    self.driver.implicitly_wait(30)
+                except TimeoutException:
+                    self.driver.implicitly_wait(30)
+                except StaleElementReferenceException:
+                    self.driver.implicitly_wait(3)
+                except NoSuchElementException:
+                    self.driver.implicitly_wait(3)
 
             if self.dpt_tm != self.real_dpt_tm:
                 for idx in range(0, max_num_train):
@@ -250,9 +268,24 @@ class SRT:
                     standard_seat = "매진"
                     reservation = "매진"
                 except NoSuchElementException:
-                    print("NoSuchElementException. 재실행 필요")
-                    if self.notify:
-                        asyncio.run(self.telegram_send(txt="NoSuchElementException. 재실행 필요"))
+                    submit = self.driver.find_element(By.XPATH, "//input[@value='조회하기']")
+                    self.driver.execute_script("arguments[0].click();", submit)
+                    try:
+                        # Wait until Netfunnel is not present
+                        NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
+                        print("NetFunnel 감지, 우회 시도")
+                        if self.NF_pass_flag:
+                            self.driver.execute_script("javascript:NetFunnel.gLastData.key='" + self.key + "'")
+                        wait = WebDriverWait(self.driver, 1800)
+                        element = wait.until(EC.staleness_of(NetFunnel))
+                        time.sleep(1)
+                        self.driver.implicitly_wait(30)
+                    except TimeoutException:
+                        self.driver.implicitly_wait(30)
+                    except StaleElementReferenceException:
+                        self.driver.implicitly_wait(3)
+                    except NoSuchElementException:
+                        self.driver.implicitly_wait(3)
                 
                 if self.want_special or self.want_any:
                     if "예약하기" in special_seat:
@@ -353,7 +386,7 @@ class SRT:
                        self.driver.back()  # 뒤로가기
                        try:
                            # Wait until Netfunnel is not present
-                           # NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
+                           NetFunnel = self.driver.find_element(By.ID, "NetFunnel_Loading_Popup")
                            print("NetFunnel 감지, 우회 시도")
                            if self.NF_pass_flag:
                                self.driver.execute_script("javascript:NetFunnel.gLastData.key='" + self.key + "'")

@@ -40,4 +40,4 @@ if __name__ == "__main__":
 
     print("프로그램 종료!")
     if notify:
-        asyncio.run(token, chat_id, main("프로그램 종료!")) #봇 실행하는 코드
+        srt.telegram_send("프로그램 종료!") #봇 실행하는 코드

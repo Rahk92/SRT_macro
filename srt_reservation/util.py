@@ -16,9 +16,9 @@ def parse_cli_args():
     parser.add_argument("--chat_id", help="Telegram Chat ID", type=int)
 
     parser.add_argument("--num", help="no of trains to check", type=int, metavar="2", default=2)
-    parser.add_argument("--reserve", help="Reserve or not", type=bool, metavar="False", default=False)
-    parser.add_argument("--special", help="Special seat or not", type=bool, metavar="False", default=False)
-    parser.add_argument("--any", help="Reserve any tickets available", type=bool, metavar="False", default=False)
+    parser.add_argument("--reserve", help="Reserve or not", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--special", help="Special seat or not", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--any", help="Reserve any tickets available", action=argparse.BooleanOptionalAction)
     parser.add_argument("--quantity", help="Quantity of tickets", type=int, metavar="1", default=1)
 
     args = parser.parse_args()
