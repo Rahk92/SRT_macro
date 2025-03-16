@@ -5,7 +5,7 @@ import telegram
 import requests
 import asyncio
 import json
-from random import randint
+from random import randint, random
 from datetime import datetime
 from seleniumwire import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
@@ -86,36 +86,32 @@ class SRT:
         self.login_psw = login_psw
 
     def run_driver(self):
+        options = Options()
+        options.set_capability(
+            "goog:loggingPrefs", {"performance": "ALL", "browser": "ALL"}
+        )
+        user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
+        options.add_argument('user-agent=' + user_agent)
+        options.add_argument("lang=ko_KR")
+        # options.add_argument('headless')
+        options.add_argument('window-size=1920x1080')
+        options.add_argument("disable-gpu")
+        options.add_argument("--no-sandbox")
         try:
-            options = Options()
-            # options.add_argument('headless')
-            options.add_argument("disable-gpu")
-            options.add_argument("--no-sandbox")
-            options.set_capability(
-                "goog:loggingPrefs", {"performance": "ALL", "browser": "ALL"}
-            )
-            self.driver = webdriver.Chrome(options=options)
+            # self.driver = webdriver.Chrome(options=options)
+            self.driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
             if self.NF_pass_flag:
                 self.NF_pass_flag = False
             # self.driver.minimize_window()
             # self.driver = webdriver.Chrome(executable_path=chromed river_path)
             # self.driver = webdriver.Chrome(r"F:\Code\Python\srt_reservation-main\chromedriver.exe")
         except WebDriverException:
-           # release = "http://chromedriver.storage.googleapis.com/LATEST_RELEASE"
-            #version = requests.get(release).text
-            service = Service(executable_path=ChromeDriverManager())
-            options = Options()
-            user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
-            options.add_argument('user-agent=' + user_agent)
-            options.add_argument("lang=ko_KR")
-            options.add_argument('headless')
-            options.add_argument('window-size=1920x1080')
-            options.add_argument("disable-gpu")
-            options.add_argument("--no-sandbox")
-            self.driver = webdriver.Chrome()
-            
-            # self.driver = webdriver.Chrome(ChromeDriverManager(version=version).install())
-
+            # release = "http://chromedriver.storage.googleapis.com/LATEST_RELEASE"
+            # version = requests.get(release).text
+            self.driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+            # self.driver = webdriver.Chrome()
+            if self.NF_pass_flag:
+                self.NF_pass_flag = False
 
     def login(self):
         self.driver.get('https://etk.srail.kr/cmc/01/selectLoginForm.do')
@@ -426,7 +422,8 @@ class SRT:
 
             if not self.is_booked:
                 print("예약 불가")
-                time.sleep(randint(2, 4))  # 2~4초 랜덤으로 기다리기
+                # time.sleep(randint(2, 4))  # 2~4초 랜덤으로 기다리기
+                time.sleep(0.7 * random())  # 0.3~1.3초 랜덤으로 기다리기
                 if self.cnt_refresh % 100 == 0 and self.cnt_refresh != 0:
                     self.cnt_refresh += 1
                     print(f"새로고침 {self.cnt_refresh}회")
@@ -434,9 +431,14 @@ class SRT:
                     return False
 
                 # 다시 조회하기
-                submit = self.driver.find_element(By.XPATH, "//input[@value='조회하기']")
-                self.driver.execute_script("arguments[0].click();", submit)
-                self.cnt_refresh += 1
+                try:
+                    submit = self.driver.find_element(By.XPATH, "//input[@value='조회하기']")
+                    self.driver.execute_script("arguments[0].click();", submit)
+                    self.cnt_refresh += 1
+                except:
+                    self.driver.back()  # 뒤로가기
+                    self.driver.implicitly_wait(5)
+                    self.cnt_refresh += 1
                 print(f"새로고침 {self.cnt_refresh}회")
                 # Wait until Netfunnel is not present
                 try:
