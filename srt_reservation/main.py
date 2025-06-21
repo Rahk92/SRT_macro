@@ -119,7 +119,7 @@ class SRT:
         self.driver.implicitly_wait(15)
         self.driver.find_element(By.ID, 'srchDvNm01').send_keys(str(self.login_id))
         self.driver.find_element(By.ID, 'hmpgPwdCphd01').send_keys(str(self.login_psw))
-        self.driver.find_element(By.XPATH, '//*[@id="login-form"]/fieldset/div[1]/div[1]/div[2]/div/div[2]/input').click()
+        self.driver.find_element(By.XPATH, '//*[@id="login-form"]/fieldset/div[1]/div[2]/div[2]/div/div[2]/input').click()
         self.driver.implicitly_wait(5)
         return self.driver
 
@@ -436,8 +436,10 @@ class SRT:
                     self.driver.execute_script("arguments[0].click();", submit)
                     self.cnt_refresh += 1
                 except:
-                    self.driver.back()  # 뒤로가기
+                    self.driver.refresh()  # 뒤로가기
                     self.driver.implicitly_wait(5)
+                    submit = self.driver.find_element(By.XPATH, "//input[@value='조회하기']")
+                    self.driver.execute_script("arguments[0].click();", submit)
                     self.cnt_refresh += 1
                 print(f"새로고침 {self.cnt_refresh}회")
                 # Wait until Netfunnel is not present
