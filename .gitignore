@@ -1,4 +1,4 @@
 *.bat
 command.txt
 *.pyc
-srt_reservation/__pycache__
+__pycache__/
