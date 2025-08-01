@@ -30,12 +30,13 @@ if __name__ == "__main__":
     want_reserve = cli_args.reserve
     want_special = cli_args.special
     want_any = cli_args.any
+    want_senior = cli_args.senior
 
     quantity = cli_args.quantity
 
     # srt = SRT(dpt_stn, arr_stn, dpt_dt, dpt_tm, psg_adult, psg_child, num_trains_to_check, want_reserve)
     
-    srt = SRT(notify, token, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check, want_reserve, want_special, want_any, quantity)
+    srt = SRT(notify, token, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check, want_reserve, want_special, want_any, want_elder, quantity)
     srt.run(login_id, login_psw)
 
     print("프로그램 종료!")

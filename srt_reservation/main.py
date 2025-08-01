@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 import os
 import time
-import telegram
+from telegram import Bot
+from telegram.constants import ParseMode
+from telegram.error import TimedOut
+from telegram.request import HTTPXRequest
+from telegram.ext import ApplicationBuilder
 import requests
 import asyncio
 import json
@@ -22,9 +26,12 @@ from srt_reservation.exceptions import InvalidStationNameError, InvalidDateError
 from srt_reservation.validation import station_list
 
 class SRT:
-    def __init__(self, notify, token, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check=2, want_reserve=False, want_special=False, want_any=False, quantity=1):
+    def __init__(self, notify, token, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check=1, want_reserve=False, want_special=False, want_any=False, want_senior=False, quantity=1):
     # def __init__(self, dpt_stn, arr_stn, dpt_dt, dpt_tm, psg_adult=1, psg_child=0, num_trains_to_check=2, want_reserve=False):
         """
+        :param notify: 텔레그램 알림 사용 여부
+        :param token: 텔레그램 봇 token
+        :param chat_id: 텔레그램 봇 chat_id
         :param dpt_stn: SRT 출발역
         :param arr_stn: SRT 도착역
         :param dpt_dt: 출발 날짜 YYYYMMDD 형태 ex) 20220115
@@ -32,6 +39,9 @@ class SRT:
         :param num_trains_to_check: 검색 결과 중 예약 가능 여부 확인할 기차의 수 ex) 2일 경우 상위 2개 확인
         :param want_reserve: 예약 대기가 가능할 경우 선택 여부
         :param want_special: 특실 선택 여부
+        :param want_any: 특실, 일반실 상관없는 예약 여부
+        :param want_senior: 경로 우대 여부
+        :param quantity: 총 예매할 기차표 수
         """
         self.login_id = None
         self.login_psw = None
@@ -43,7 +53,7 @@ class SRT:
         self.dpt_tm_offset = 0
         self.real_dpt_tm = dpt_tm
         
-        # self.psg_adult = psg_adult
+        self.want_senior = want_senior
         # self.psg_child = psg_child
 
         self.num_trains_to_check = num_trains_to_check
@@ -59,6 +69,13 @@ class SRT:
         self.notify = notify
         self.token = token
         self.chat_id = chat_id
+
+        # HTTPXRequest로 타임아웃 설정
+        request = HTTPXRequest(
+            connect_timeout=10,
+            read_timeout=20,
+        )
+        self.bot = Bot(token=self.token, request=request)
         self.quantity = quantity
         self.cnt_quantity = 0
 
@@ -66,8 +83,11 @@ class SRT:
         self.key = ""
 
     async def telegram_send(self, txt):
-        bot = telegram.Bot(token=self.token)
-        await bot.sendMessage(self.chat_id, txt)
+        try:
+            await self.bot.send_message(chat_id=self.chat_id, text=txt)
+
+        except TimedOut:
+            print("⏰ Telegram 응답 시간 초과!")
 
     def check_input(self):
         if self.dpt_stn not in station_list:
@@ -86,57 +106,61 @@ class SRT:
         self.login_psw = login_psw
 
     def run_driver(self):
-        options = Options()
-        options.set_capability(
-            "goog:loggingPrefs", {"performance": "ALL", "browser": "ALL"}
-        )
-        user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
-        options.add_argument('user-agent=' + user_agent)
-        options.add_argument("lang=ko_KR")
-        # options.add_argument('headless')
-        options.add_argument('window-size=1920x1080')
-        options.add_argument("disable-gpu")
-        options.add_argument("--no-sandbox")
         try:
-            # self.driver = webdriver.Chrome(options=options)
-            self.driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
-            if self.NF_pass_flag:
-                self.NF_pass_flag = False
-            # self.driver.minimize_window()
-            # self.driver = webdriver.Chrome(executable_path=chromed river_path)
+            options = Options()
+            # options.add_argument('headless')
+            options.add_argument("disable-gpu")
+            options.add_argument("--no-sandbox")
+
+            options.set_capability(
+                "goog:loggingPrefs", {"performance": "ALL", "browser": "ALL"}
+            )
+            self.driver = webdriver.Chrome(options=options)
+            self.driver.set_window_size(1920, 1080)
+            self.driver.set_window_position(-2560, 0) # dual QHD monitor setting
+            self.driver.minimize_window()
+            # if self.NF_pass_flag:
+            #     self.NF_pass_flag = False
+            # self.driver = webdriver.Chrome(executable_path=chromedriver_path)
             # self.driver = webdriver.Chrome(r"F:\Code\Python\srt_reservation-main\chromedriver.exe")
         except WebDriverException:
-            # release = "http://chromedriver.storage.googleapis.com/LATEST_RELEASE"
-            # version = requests.get(release).text
-            self.driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
-            # self.driver = webdriver.Chrome()
-            if self.NF_pass_flag:
-                self.NF_pass_flag = False
+           # release = "http://chromedriver.storage.googleapis.com/LATEST_RELEASE"
+            #version = requests.get(release).text
+            service = Service(executable_path=ChromeDriverManager())
+            options = Options()
+            user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
+            options.add_argument('user-agent=' + user_agent)
+            options.add_argument("lang=ko_KR")
+            options.add_argument('headless')
+            options.add_argument('window-size=1920x1080')
+            options.add_argument("disable-gpu")
+            options.add_argument("--no-sandbox")
+            self.driver = webdriver.Chrome()
+            
+            # self.driver = webdriver.Chrome(ChromeDriverManager(version=version).install())
+
 
     def login(self):
         self.driver.get('https://etk.srail.kr/cmc/01/selectLoginForm.do')
-
-        self.driver.implicitly_wait(15)
+        WebDriverWait(self.driver, 10).until(EC.visibility_of_element_located((By.ID, 'srchDvNm01')))
         self.driver.find_element(By.ID, 'srchDvNm01').send_keys(str(self.login_id))
         self.driver.find_element(By.ID, 'hmpgPwdCphd01').send_keys(str(self.login_psw))
         self.driver.find_element(By.XPATH, '//*[@id="login-form"]/fieldset/div[1]/div[2]/div[2]/div/div[2]/input').click()
-        self.driver.implicitly_wait(5)
+        self.driver.implicitly_wait(15)
         return self.driver
 
     def check_login(self):
+        WebDriverWait(self.driver, 10).until(EC.visibility_of_element_located((By.CSS_SELECTOR, "#wrap > div.header.header-e > div.global.clear > div")))
         menu_text = self.driver.find_element(By.CSS_SELECTOR, "#wrap > div.header.header-e > div.global.clear > div").text
         if "환영합니다" in menu_text:
             return True
         else:
             return False
 
-
-
     def go_search(self):
-
         # 기차 조회 페이지로 이동
-        self.driver.get('https://etk.srail.kr/hpg/hra/01/selectScheduleList.do')
-        self.driver.implicitly_wait(5)
+        # self.driver.get('https://etk.srail.kr/hpg/hra/01/selectScheduleList.do')
+        self.driver.implicitly_wait(15)
 
         # 출발지 입력
         elm_dpt_stn = self.driver.find_element(By.ID, 'dptRsStnCdNm')
@@ -151,17 +175,21 @@ class SRT:
         # 출발 날짜 입력
         elm_dpt_dt = self.driver.find_element(By.ID, "dptDt")
         self.driver.execute_script("arguments[0].setAttribute('style','display: True;')", elm_dpt_dt)
-        Select(self.driver.find_element(By.ID, "dptDt")).select_by_value(self.dpt_dt)
+        Select(elm_dpt_dt).select_by_value(self.dpt_dt)
 
         # 출발 시간 입력
         elm_dpt_tm = self.driver.find_element(By.ID, "dptTm")
         self.driver.execute_script("arguments[0].setAttribute('style','display: True;')", elm_dpt_tm)
-        Select(self.driver.find_element(By.ID, "dptTm")).select_by_visible_text(self.dpt_tm)
+        Select(elm_dpt_tm).select_by_visible_text(self.dpt_tm)
         
-        # 인원 입력
-        # elm_psg_adult = self.driver.find_element_by_name("psgInfoPerPrnb1")
-        # self.driver.execute_script("arguments[0].setAttribute('style','display: True;')", elm_psg_adult)
-        # Select(self.driver.find_element_by_name("psgInfoPerPrnb1")).select_by_value(self.psg_adult)
+        # 경로우대권 적용
+        if self.want_senior:
+            elm_psg_adult = self.driver.find_element(By.ID, "psgInfoPerPrnb1")
+            elm_psg_elder = self.driver.find_element(By.ID, "psgInfoPerPrnb4")
+            self.driver.execute_script("arguments[0].setAttribute('style','display: True;')", elm_psg_adult)
+            self.driver.execute_script("arguments[0].setAttribute('style','display: True;')", elm_psg_elder)
+            Select(elm_psg_adult).select_by_index(0)
+            Select(elm_psg_elder).select_by_index(1)
         
         # elm_psg_child = self.driver.find_element_by_name("psgInfoPerPrnb5")
         # self.driver.execute_script("arguments[0].setAttribute('style','display: True;')", elm_psg_child)
@@ -174,7 +202,8 @@ class SRT:
                           f'{self.num_trains_to_check}개의 기차 중 예약\n'
                           f'예약 대기 사용: {self.want_reserve}\n'
                           f'특실 여부: {self.want_special}\n'
-                          f'무조건 여부: {self.want_any}')
+                          f'무조건 여부: {self.want_any}\n'
+                          f'경로우대 여부: {self.want_senior}')
             print(config_txt)
             # print("기차를 조회합니다")
             # print(f"출발역:{self.dpt_stn} , 도착역:{self.arr_stn}\n날짜:{self.dpt_dt}, 시간: {self.real_dpt_tm}시 이후\n{self.num_trains_to_check}개의 기차 중 예약")
@@ -208,7 +237,6 @@ class SRT:
                                 print(f'{request.url}, 응답코드 {request.response.status_code}, 컨텐츠 유형: {request.response.headers["Content-Type"]}')
                                 print("Token : " + self.key)
             time.sleep(1)
-
         except StaleElementReferenceException:
             self.driver.implicitly_wait(30)
         except NoSuchElementException:
@@ -220,7 +248,7 @@ class SRT:
             try:
                 tbody = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody")
                 tr = tbody.find_elements(By.TAG_NAME, "tr")
-                max_num_train = min(len(tr) + 1, self.num_trains_to_check + 1)
+                max_num_train = min(len(tr), self.num_trains_to_check)
             except NoSuchElementException:
                 submit = self.driver.find_element(By.XPATH, "//input[@value='조회하기']")
                 self.driver.execute_script("arguments[0].click();", submit)
@@ -253,12 +281,12 @@ class SRT:
             else:
                 self.dpt_tm_offset = 0
 
-            for i in range(1, max_num_train):
+            for i in range(1, max_num_train + 1):
                 try:
-                    # self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child()")
-                    special_seat = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(6)").text
-                    standard_seat = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(7)").text
-                    reservation = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset}) > td:nth-child(8)").text
+                    tr = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset})")
+                    special_seat = tr.find_element(By.CSS_SELECTOR, "td:nth-child(6)").text
+                    standard_seat = tr.find_element(By.CSS_SELECTOR, "td:nth-child(7)").text
+                    reservation = tr.find_element(By.CSS_SELECTOR, "td:nth-child(8)").text
                 except StaleElementReferenceException:
                     special_seat = "매진"
                     standard_seat = "매진"
@@ -422,26 +450,29 @@ class SRT:
 
             if not self.is_booked:
                 print("예약 불가")
-                # time.sleep(randint(2, 4))  # 2~4초 랜덤으로 기다리기
-                time.sleep(0.7 * random())  # 0.3~1.3초 랜덤으로 기다리기
-                if self.cnt_refresh % 100 == 0 and self.cnt_refresh != 0:
-                    self.cnt_refresh += 1
-                    print(f"새로고침 {self.cnt_refresh}회")
-                    self.driver.quit()
+                time.sleep(0.5 + random() * 0.5)  # 0.5~1초 랜덤으로 기다리기
+                self.cnt_refresh += 1
+                print(f"새로고침 {self.cnt_refresh}회")
+
+                if self.cnt_refresh % 200 == 0 and self.cnt_refresh != 0:
+                    current_handle = self.driver.current_window_handle
+                    self.driver.execute_script("window.open('https://etk.srail.kr/hpg/hra/01/selectScheduleList.do');")
+                    element = WebDriverWait(self.driver, 10).until(EC.visibility_of_element_located((By.XPATH, "//input[@value='조회하기']")))
+                    self.driver.switch_to.window(current_handle)
+                    self.driver.close()
+                    self.driver.switch_to.window(self.driver.window_handles[-1])
+                    self.go_search()
                     return False
 
                 # 다시 조회하기
                 try:
                     submit = self.driver.find_element(By.XPATH, "//input[@value='조회하기']")
                     self.driver.execute_script("arguments[0].click();", submit)
-                    self.cnt_refresh += 1
-                except:
-                    self.driver.refresh()  # 뒤로가기
-                    self.driver.implicitly_wait(5)
+                except NoSuchElementException:
+                    self.driver.refresh()
                     submit = self.driver.find_element(By.XPATH, "//input[@value='조회하기']")
                     self.driver.execute_script("arguments[0].click();", submit)
-                    self.cnt_refresh += 1
-                print(f"새로고침 {self.cnt_refresh}회")
+
                 # Wait until Netfunnel is not present
                 try:
                     # Wait until Netfunnel is not present
@@ -451,9 +482,6 @@ class SRT:
                         self.driver.execute_script("javascript:NetFunnel.gLastData.key='" + self.key + "'")
                     wait = WebDriverWait(self.driver, 1800)
                     element = wait.until(EC.staleness_of(NetFunnel))
-                    time.sleep(1)
-
-                    self.driver.implicitly_wait(30)
                 except TimeoutException:
                     self.driver.implicitly_wait(30)
                 except StaleElementReferenceException:
@@ -470,10 +498,18 @@ class SRT:
 
     def run(self, login_id, login_psw):
         result = False
-        while not result:
-            self.run_driver()
+        self.run_driver()
+        login_check = False
+        while not login_check:
             self.set_log_info(login_id, login_psw)
             self.login()
-            self.go_search()
+            login_check = self.check_login()
+            if not login_check:
+                print("로그인 실패. 다시 시도함.")
+            else:
+                print("로그인 성공!")
+        self.driver.get('https://etk.srail.kr/hpg/hra/01/selectScheduleList.do')
+        self.go_search()
+        while not result:
             result = self.refresh_search_result()
         self.driver.quit()
