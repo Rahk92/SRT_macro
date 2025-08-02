@@ -3,13 +3,6 @@
 # imports
 from srt_reservation.main import SRT
 from srt_reservation.util import parse_cli_args
-import telegram
-import asyncio
-
-async def main(token ,chat_id, txt): #실행시킬 함수명 임의지정
-
-    bot = telegram.Bot(token = token)
-    await bot.send_message(chat_id,text=txt)
 
 if __name__ == "__main__":
     cli_args = parse_cli_args()
@@ -34,11 +27,7 @@ if __name__ == "__main__":
 
     quantity = cli_args.quantity
 
-    # srt = SRT(dpt_stn, arr_stn, dpt_dt, dpt_tm, psg_adult, psg_child, num_trains_to_check, want_reserve)
-    
-    srt = SRT(notify, token, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check, want_reserve, want_special, want_any, want_elder, quantity)
+    srt = SRT(notify, token, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check, want_reserve, want_special, want_any, want_senior, quantity)
     srt.run(login_id, login_psw)
 
     print("프로그램 종료!")
-    if notify:
-        srt.telegram_send("프로그램 종료!") #봇 실행하는 코드

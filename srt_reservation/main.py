@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import os
 import time
+
+from seleniumwire.undetected_chromedriver import ChromeOptions
 from telegram import Bot
 from telegram.constants import ParseMode
 from telegram.error import TimedOut
@@ -13,8 +15,8 @@ from random import randint, random
 from datetime import datetime
 from seleniumwire import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
@@ -85,9 +87,9 @@ class SRT:
     async def telegram_send(self, txt):
         try:
             await self.bot.send_message(chat_id=self.chat_id, text=txt)
-
-        except TimedOut:
-            print("⏰ Telegram 응답 시간 초과!")
+            print("Telegram 메세지 전송 성공")
+        except Exception as e:
+            print(f"Telegram 메세지 전송 실패: {e}")
 
     def check_input(self):
         if self.dpt_stn not in station_list:
@@ -107,7 +109,7 @@ class SRT:
 
     def run_driver(self):
         try:
-            options = Options()
+            options = ChromeOptions()
             # options.add_argument('headless')
             options.add_argument("disable-gpu")
             options.add_argument("--no-sandbox")
@@ -115,30 +117,19 @@ class SRT:
             options.set_capability(
                 "goog:loggingPrefs", {"performance": "ALL", "browser": "ALL"}
             )
-            self.driver = webdriver.Chrome(options=options)
+            service = ChromeService(executable_path=ChromeDriverManager().install())
+
+            # self.driver = webdriver.Chrome(options=options)
+            self.driver = webdriver.Chrome(service=service, options=options)
             self.driver.set_window_size(1920, 1080)
             self.driver.set_window_position(-2560, 0) # dual QHD monitor setting
-            self.driver.minimize_window()
+            # self.driver.minimize_window()
             # if self.NF_pass_flag:
             #     self.NF_pass_flag = False
             # self.driver = webdriver.Chrome(executable_path=chromedriver_path)
             # self.driver = webdriver.Chrome(r"F:\Code\Python\srt_reservation-main\chromedriver.exe")
-        except WebDriverException:
-           # release = "http://chromedriver.storage.googleapis.com/LATEST_RELEASE"
-            #version = requests.get(release).text
-            service = Service(executable_path=ChromeDriverManager())
-            options = Options()
-            user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
-            options.add_argument('user-agent=' + user_agent)
-            options.add_argument("lang=ko_KR")
-            options.add_argument('headless')
-            options.add_argument('window-size=1920x1080')
-            options.add_argument("disable-gpu")
-            options.add_argument("--no-sandbox")
-            self.driver = webdriver.Chrome()
-            
-            # self.driver = webdriver.Chrome(ChromeDriverManager(version=version).install())
-
+        except Exception as e:
+            print(f"오류 발생 : {e}")
 
     def login(self):
         self.driver.get('https://etk.srail.kr/cmc/01/selectLoginForm.do')
@@ -157,7 +148,7 @@ class SRT:
         else:
             return False
 
-    def go_search(self):
+    async def go_search(self):
         # 기차 조회 페이지로 이동
         # self.driver.get('https://etk.srail.kr/hpg/hra/01/selectScheduleList.do')
         self.driver.implicitly_wait(15)
@@ -215,7 +206,7 @@ class SRT:
                 print("----------------------------")
                 print("텔레그램 test 메시지 전송")
                 print("메시지 안오면 확인 후 재실행")
-                asyncio.run(self.telegram_send(txt=config_txt))
+                await self.telegram_send(txt=config_txt)
             print("============================")
 
         # 조회하기 버튼 클릭
@@ -242,13 +233,13 @@ class SRT:
         except NoSuchElementException:
             self.driver.implicitly_wait(3)
 
-    def refresh_search_result(self):
         while True:
             max_num_train = 1
             try:
                 tbody = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody")
                 tr = tbody.find_elements(By.TAG_NAME, "tr")
-                max_num_train = min(len(tr), self.num_trains_to_check)
+                max_num_train = len(tr)
+                self.num_trains_to_check = min(max_num_train, self.num_trains_to_check)
             except NoSuchElementException:
                 submit = self.driver.find_element(By.XPATH, "//input[@value='조회하기']")
                 self.driver.execute_script("arguments[0].click();", submit)
@@ -281,7 +272,7 @@ class SRT:
             else:
                 self.dpt_tm_offset = 0
 
-            for i in range(1, max_num_train + 1):
+            for i in range(1, self.num_trains_to_check + 1):
                 try:
                     tr = self.driver.find_element(By.CSS_SELECTOR, f"#result-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr:nth-child({i + self.dpt_tm_offset})")
                     special_seat = tr.find_element(By.CSS_SELECTOR, "td:nth-child(6)").text
@@ -334,10 +325,10 @@ class SRT:
                             booked_tm_arr = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr > td:nth-child(7)")
                             result_str = "출발시간 : " + booked_tm_dpt.text + " / 도착시간 : " + booked_tm_arr.text
                             print(result_str)
-                            if self.notify:
-                                asyncio.run(self.telegram_send(txt=result_msg))
-                                asyncio.run(self.telegram_send(txt="특실 예약 성공!"))
-                                asyncio.run(self.telegram_send(txt=result_str))
+                            # if self.notify:
+                            #     asyncio.run(self.telegram_send(txt=result_msg))
+                            #     asyncio.run(self.telegram_send(txt="특실 예약 성공!"))
+                            #     asyncio.run(self.telegram_send(txt=result_str))
                             if (self.cnt_quantity == self.quantity):
                                 self.is_booked = True
                                 break
@@ -398,7 +389,7 @@ class SRT:
                        # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
                        # asyncio.run(self.telegram_send(result_msg_merge))
                        if self.notify:
-                            asyncio.run(self.telegram_send(txt=result_msg_merge))
+                           await self.telegram_send(txt=result_msg_merge)
                        if(self.cnt_quantity == self.quantity):
                            self.is_booked = True
                            break
@@ -437,10 +428,11 @@ class SRT:
                         booked_tm_arr = self.driver.find_element(By.CSS_SELECTOR, f"#list-form > fieldset > div.tbl_wrap.th_thead > table > tbody > tr > td:nth-child(7)")
                         result_str = "출발시간 : " + booked_tm_dpt.text + " / 도착시간 : " + booked_tm_arr.text
                         print(result_str)
-                        if self.notify:
-                            asyncio.run(self.telegram_send(txt=result_msg))
-                            asyncio.run(self.telegram_send(txt="일반실 예약 대기 예약 성공!"))
-                            asyncio.run(self.telegram_send(txt=result_str))
+                        # if self.notify:
+                        #     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+                        #     asyncio.run(self.telegram_send(txt=result_msg))
+                        #     asyncio.run(self.telegram_send(txt="일반실 예약 대기 예약 성공!"))
+                        #     asyncio.run(self.telegram_send(txt=result_str))
                         if (self.cnt_quantity == self.quantity):
                             self.is_booked = True
                             break
@@ -461,8 +453,6 @@ class SRT:
                     self.driver.switch_to.window(current_handle)
                     self.driver.close()
                     self.driver.switch_to.window(self.driver.window_handles[-1])
-                    self.go_search()
-                    return False
 
                 # 다시 조회하기
                 try:
@@ -490,8 +480,6 @@ class SRT:
                     self.driver.implicitly_wait(3)
             else:
                 print("예약 완료")
-                if self.notify:
-                    self.telegram_send(txt="예약 완료")
                 return True
     # TODO
     #def pay(self):
@@ -509,7 +497,7 @@ class SRT:
             else:
                 print("로그인 성공!")
         self.driver.get('https://etk.srail.kr/hpg/hra/01/selectScheduleList.do')
-        self.go_search()
-        while not result:
-            result = self.refresh_search_result()
+        asyncio.run(self.go_search())
+        # while not result:
+        #     asyncio.run(self.refresh_search_result())
         self.driver.quit()
