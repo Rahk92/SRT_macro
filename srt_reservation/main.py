@@ -28,8 +28,8 @@ from srt_reservation.exceptions import InvalidStationNameError, InvalidDateError
 from srt_reservation.validation import station_list
 
 class SRT:
-    def __init__(self, notify, token, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check=1, want_reserve=False, want_special=False, want_any=False, want_senior=False, quantity=1):
-    # def __init__(self, dpt_stn, arr_stn, dpt_dt, dpt_tm, psg_adult=1, psg_child=0, num_trains_to_check=2, want_reserve=False):
+    def __init__(self, args):
+    # def __init__(self, notify, token, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check=1, want_reserve=False, want_special=False, want_any=False, want_senior=False, want_child=False, quantity=1):
         """
         :param notify: 텔레그램 알림 사용 여부
         :param token: 텔레그램 봇 token
@@ -48,29 +48,29 @@ class SRT:
         self.login_id = None
         self.login_psw = None
 
-        self.dpt_stn = dpt_stn
-        self.arr_stn = arr_stn
-        self.dpt_dt = dpt_dt
-        self.dpt_tm = str(int(dpt_tm) // 2 * 2).zfill(2)
+        self.dpt_stn = args.dpt
+        self.arr_stn = args.arr
+        self.dpt_dt = args.dt
+        self.dpt_tm = str(int(args.tm) // 2 * 2).zfill(2)
         self.dpt_tm_offset = 0
-        self.real_dpt_tm = dpt_tm
+        self.real_dpt_tm = args.tm
         
-        self.want_senior = want_senior
-        # self.psg_child = psg_child
+        self.want_senior = args.senior
+        self.want_child = args.child
 
-        self.num_trains_to_check = num_trains_to_check
-        self.want_reserve = want_reserve
-        self.want_special = want_special
-        self.want_any = want_any
+        self.num_trains_to_check = args.num
+        self.want_reserve = args.reserve
+        self.want_special = args.special
+        self.want_any = args.any
         self.driver = None
 
         self.is_booked = False  # 예약 완료 되었는지 확인용
         self.cnt_refresh = 0  # 새로고침 회수 기록
 
         self.check_input()
-        self.notify = notify
-        self.token = token
-        self.chat_id = chat_id
+        self.notify = args.notify
+        self.token = args.token
+        self.chat_id = args.chat_id
 
         # HTTPXRequest로 타임아웃 설정
         request = HTTPXRequest(
@@ -78,7 +78,7 @@ class SRT:
             read_timeout=20,
         )
         self.bot = Bot(token=self.token, request=request)
-        self.quantity = quantity
+        self.quantity = args.quantity
         self.cnt_quantity = 0
 
         self.NF_pass_flag = False
@@ -117,13 +117,18 @@ class SRT:
             options.set_capability(
                 "goog:loggingPrefs", {"performance": "ALL", "browser": "ALL"}
             )
-            service = ChromeService(executable_path=ChromeDriverManager().install())
+
+            chrome_install = ChromeDriverManager().install()
+            folder = os.path.dirname(chrome_install)
+            chromedriver_path = os.path.join(folder, "chromedriver.exe")
+            service = ChromeService(chromedriver_path)
+            # service = ChromeService(executable_path=ChromeDriverManager().install())
 
             # self.driver = webdriver.Chrome(options=options)
             self.driver = webdriver.Chrome(service=service, options=options)
             self.driver.set_window_size(1920, 1080)
-            self.driver.set_window_position(-2560, 0) # dual QHD monitor setting
-            # self.driver.minimize_window()
+            # self.driver.set_window_position(-2560, 0) # dual QHD monitor setting
+            self.driver.minimize_window()
             # if self.NF_pass_flag:
             #     self.NF_pass_flag = False
             # self.driver = webdriver.Chrome(executable_path=chromedriver_path)
@@ -141,8 +146,8 @@ class SRT:
         return self.driver
 
     def check_login(self):
-        WebDriverWait(self.driver, 10).until(EC.visibility_of_element_located((By.CSS_SELECTOR, "#wrap > div.header.header-e > div.global.clear > div")))
-        menu_text = self.driver.find_element(By.CSS_SELECTOR, "#wrap > div.header.header-e > div.global.clear > div").text
+        WebDriverWait(self.driver, 10).until(EC.visibility_of_element_located((By.CLASS_NAME, "my-name")))
+        menu_text = self.driver.find_element(By.CLASS_NAME, "my-name").text
         if "환영합니다" in menu_text:
             return True
         else:
@@ -181,6 +186,15 @@ class SRT:
             self.driver.execute_script("arguments[0].setAttribute('style','display: True;')", elm_psg_elder)
             Select(elm_psg_adult).select_by_index(0)
             Select(elm_psg_elder).select_by_index(1)
+
+        # 동반 어린이 적용
+        if self.want_child:
+            elm_psg_adult = self.driver.find_element(By.ID, "psgInfoPerPrnb1")
+            elm_psg_child = self.driver.find_element(By.ID, "psgInfoPerPrnb5")
+            self.driver.execute_script("arguments[0].setAttribute('style','display: True;')", elm_psg_adult)
+            self.driver.execute_script("arguments[0].setAttribute('style','display: True;')", elm_psg_child)
+            Select(elm_psg_adult).select_by_index(1)
+            Select(elm_psg_child).select_by_index(1)
         
         # elm_psg_child = self.driver.find_element_by_name("psgInfoPerPrnb5")
         # self.driver.execute_script("arguments[0].setAttribute('style','display: True;')", elm_psg_child)
@@ -446,13 +460,13 @@ class SRT:
                 self.cnt_refresh += 1
                 print(f"새로고침 {self.cnt_refresh}회")
 
-                if self.cnt_refresh % 200 == 0 and self.cnt_refresh != 0:
-                    current_handle = self.driver.current_window_handle
-                    self.driver.execute_script("window.open('https://etk.srail.kr/hpg/hra/01/selectScheduleList.do');")
-                    element = WebDriverWait(self.driver, 10).until(EC.visibility_of_element_located((By.XPATH, "//input[@value='조회하기']")))
-                    self.driver.switch_to.window(current_handle)
-                    self.driver.close()
-                    self.driver.switch_to.window(self.driver.window_handles[-1])
+                # if self.cnt_refresh % 200 == 0 and self.cnt_refresh != 0:
+                #     current_handle = self.driver.current_window_handle
+                #     self.driver.execute_script("window.open('https://etk.srail.kr/hpg/hra/01/selectScheduleList.do');")
+                #     element = WebDriverWait(self.driver, 10).until(EC.visibility_of_element_located((By.XPATH, "//input[@value='조회하기']")))
+                #     self.driver.switch_to.window(current_handle)
+                #     self.driver.close()
+                #     self.driver.switch_to.window(self.driver.window_handles[-1])
 
                 # 다시 조회하기
                 try:

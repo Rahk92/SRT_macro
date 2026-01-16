@@ -20,7 +20,10 @@ def parse_cli_args():
     parser.add_argument("--special", help="Special seat or not", action=argparse.BooleanOptionalAction)
     parser.add_argument("--any", help="Reserve any tickets available", action=argparse.BooleanOptionalAction)
     parser.add_argument("--senior", help="Reserve senior citizen discount tickets available", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--child", help="Reserve child discount tickets available", action=argparse.BooleanOptionalAction)
+
     parser.add_argument("--quantity", help="Quantity of tickets", type=int, metavar="1", default=1)
+    parser.add_argument("--car", help="Carriage number of train", type=int, metavar="1", default=0)
 
     args = parser.parse_args()
 

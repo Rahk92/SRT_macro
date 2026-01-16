@@ -9,25 +9,26 @@ if __name__ == "__main__":
 
     login_id = cli_args.user
     login_psw = cli_args.psw
-    dpt_stn = cli_args.dpt
-    arr_stn = cli_args.arr
-    dpt_dt = cli_args.dt
-    dpt_tm = cli_args.tm
+    # dpt_stn = cli_args.dpt
+    # arr_stn = cli_args.arr
+    # dpt_dt = cli_args.dt
+    # dpt_tm = cli_args.tm
+    #
+    # notify = cli_args.notify
+    # token = cli_args.token
+    # chat_id = cli_args.chat_id
+    #
+    # num_trains_to_check = cli_args.num
+    #
+    # want_reserve = cli_args.reserve
+    # want_special = cli_args.special
+    # want_any = cli_args.any
+    # want_senior = cli_args.senior
+    # want_child = cli_args.child
+    #
+    # quantity = cli_args.quantity
 
-    notify = cli_args.notify
-    token = cli_args.token
-    chat_id = cli_args.chat_id
-
-    num_trains_to_check = cli_args.num
-
-    want_reserve = cli_args.reserve
-    want_special = cli_args.special
-    want_any = cli_args.any
-    want_senior = cli_args.senior
-
-    quantity = cli_args.quantity
-
-    srt = SRT(notify, token, chat_id, dpt_stn, arr_stn, dpt_dt, dpt_tm, num_trains_to_check, want_reserve, want_special, want_any, want_senior, quantity)
+    srt = SRT(cli_args)
     srt.run(login_id, login_psw)
 
     print("프로그램 종료!")
